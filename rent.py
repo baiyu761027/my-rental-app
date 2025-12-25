@@ -2,54 +2,18 @@ import streamlit as st
 import pandas as pd
 import requests
 import io
+import plotly.express as px
 
-# --- 1. 極致冷調科技 UI 設定 ---
-st.set_page_config(page_title="物業管理終端", layout="wide")
+# --- 1. UI 設定 (俐落冷調無光暈) ---
+st.set_page_config(page_title="物業管理終端 v4.0", layout="wide")
 
 st.markdown("""
     <style>
-    /* 全域設定：純黑底 */
     .stApp { background-color: #000000; color: #FFFFFF; }
-    
-    /* 標題：俐落漸層 */
-    .hero-text {
-        background: linear-gradient(90deg, #00F2FF, #7000FF);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 32px; font-weight: 800;
-        padding: 15px 0;
-    }
-    
-    /* 數據卡片：移除發光，改用實線邊框 */
-    div[data-testid="stMetric"] {
-        background: #151517 !important;
-        border: 1px solid #333333 !important;
-        border-radius: 10px !important;
-        padding: 15px !important;
-    }
-
-    /* 監控中心表格：無光暈、俐落邊框設計 */
-    .stDataFrame {
-        background: #000000 !important;
-        border: 1px solid #444444 !important;
-        border-radius: 5px !important;
-    }
-
-    /* 調整按鈕 */
-    .stButton>button {
-        background: linear-gradient(45deg, #00F2FF, #7000FF) !important;
-        color: white !important;
-        border-radius: 8px !important;
-        font-weight: bold !important;
-    }
-
-    /* 結算區塊文字 */
-    .bill-amount { color: #FFFFFF; font-size: 48px; font-weight: 800; margin: 10px 0; }
-    .bill-detail-rent { color: #00F2FF; } /* 租金青色 */
-    .bill-detail-elec { color: #BF40FF; } /* 電費紫色 */
-
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    .hero-text { background: linear-gradient(90deg, #00F2FF, #7000FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 32px; font-weight: 800; padding: 15px 0; }
+    div[data-testid="stMetric"] { background: #151517 !important; border: 1px solid #333333 !important; border-radius: 10px !important; }
+    .stDataFrame { background: #000000 !important; border: 1px solid #444444 !important; }
+    header, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,64 +26,82 @@ def load_data():
     try:
         response = requests.get(CSV_URL)
         response.encoding = 'utf-8'
-        return pd.read_csv(io.StringIO(response.text)).dropna(subset=['房號'])
+        data = pd.read_csv(io.StringIO(response.text)).dropna(subset=['房號'])
+        # 自動檢查繳費狀態欄位
+        if '繳費狀態' not in data.columns:
+            data['繳費狀態'] = '未交'
+        return data
     except:
         return pd.DataFrame()
 
 df = load_data()
 
 # --- 3. 儀表板主畫面 ---
-st.markdown('<p class="hero-text">🛸 PROPERTY TERMINAL v2.0</p>', unsafe_allow_html=True)
+st.markdown('<p class="hero-text">🛸 PROPERTY TERMINAL v4.0</p>', unsafe_allow_html=True)
+
+# 數據摘要
+paid_count = len(df[df['繳費狀態'] == '已交'])
+unpaid_count = len(df[df['繳費狀態'] == '未交'])
+total_revenue = df['租金加電費'].sum() if '租金加電費' in df.columns else 0
 
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.metric("管理房源", f"{len(df)} 戶")
+    st.metric("收費進度", f"{paid_count} / {len(df)} 戶", delta=f"待收 {unpaid_count} 戶", delta_color="inverse")
 with m2:
-    total_revenue = df['租金加電費'].sum() if '租金加電費' in df.columns else 0
-    st.metric("預計總營收", f"${total_revenue:,.0f}")
+    st.metric("本月預計總營收", f"${total_revenue:,.0f}")
 with m3:
-    st.metric("連線狀態", "DIRECT LINK", delta="ONLINE")
+    st.metric("系統連線", "SECURE", delta="ENCRYPTED")
 
 st.divider()
 
 t1, t2 = st.tabs(["📊 監控中心", "⚡ 智能結算"])
 
 with t1:
-    st.markdown("<h3 style='color:#AAAAAA; font-size: 18px;'>全房源數據庫 (無光暈冷調版)</h3>", unsafe_allow_html=True)
-    # 使用表格原本的俐落質感
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    col_chart, col_table = st.columns([1, 2.5])
+    
+    with col_chart:
+        st.markdown("<p style='color:#888; font-size:14px; text-align:center;'>月度收費達成率</p>", unsafe_allow_html=True)
+        # 繪製冷調圓環圖
+        fig = px.pie(
+            names=['已交', '未交'], 
+            values=[paid_count, unpaid_count],
+            hole=0.75,
+            color=['已交', '未交'],
+            color_discrete_map={'已交':'#00F2FF', '未交':'#262626'}
+        )
+        fig.update_layout(
+            showlegend=False, margin=dict(t=0, b=0, l=0, r=0),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        fig.update_traces(textinfo='percent', textfont_size=18, textfont_color="white", hoverinfo='label+value')
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    with col_table:
+        st.markdown("<h3 style='color:#00F2FF; font-size:18px;'>全房源即時監控</h3>", unsafe_allow_html=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 with t2:
     st.subheader("⚡ 自動化抄表結算")
     if not df.empty:
-        target = st.selectbox("請選擇房號", df['房號'].astype(str))
+        target = st.selectbox("選擇房號", df['房號'].astype(str))
         room = df[df['房號'].astype(str) == target].iloc[0]
+        
+        # 顯示該房繳費狀態
+        status_color = "#00F2FF" if room['繳費狀態'] == '已交' else "#FF4B4B"
+        st.markdown(f"目前狀態：<span style='color:{status_color}; font-weight:bold;'>{room['繳費狀態']}</span>", unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"👤 **租客：** <span style='color:#00F2FF;'>{room['租客']}</span>", unsafe_allow_html=True)
-            st.markdown(f"🏢 **公司：** <span style='color:#7000FF;'>{room['公司名稱']}</span>", unsafe_allow_html=True)
+            st.write(f"租客：{room['租客']}")
             prev_v = float(room['上次電表'])
-            curr_v = st.number_input("本次讀數", value=float(room['本次電表']) if not pd.isna(room['本次電表']) else prev_v)
-        
+            curr_v = st.number_input("輸入本次讀數", value=float(room['本次電表']) if not pd.isna(room['本次電表']) else prev_v)
         with col2:
-            rate = 5.0 
             usage = curr_v - prev_v
-            elec_fee = usage * rate
+            elec_fee = usage * 5.0
             total_bill = room['租金'] + elec_fee
-            
-        # 結算框：保持層次感但減少過度發光
-        st.markdown(f"""
-            <div style="background: #111111; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: center; margin: 15px 0;">
-                <p style="color:#666; margin:0; font-size: 14px;">房號 {target} 應收金額</p>
-                <h1 class="bill-amount">NT$ {total_bill:,.0f}</h1>
-                <p style="font-size: 16px;">
-                    <span class="bill-detail-rent">租金 ${room['租金']:,}</span> 
-                    <span style="color:#444;"> | </span> 
-                    <span class="bill-detail-elec">電費 ${elec_fee:,.0f}</span>
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        if st.button("🚀 確認結算"):
-            st.balloons()
+            st.markdown(f"""
+                <div style="background:#111; padding:20px; border-radius:10px; border:1px solid #333; text-align:center;">
+                    <p style="color:#888; margin:0;">應收總額</p>
+                    <h2 style="margin:10px 0;">${total_bill:,.0f}</h2>
+                </div>
+            """, unsafe_allow_html=True)
