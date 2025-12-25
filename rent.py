@@ -148,5 +148,4 @@ with t2:
             st.balloons()
             st.success(f"房號 {target} 的數據已計算完成！(存回功能需配置寫入權限)")
     else:
-        st.warning("目前讀取不到房源資料，請檢查試算表。")e(str))
-        room = df[df['房號'].astype(str) == target].iloc[0]
+        st.warning("目前讀取不到房源資料，請檢查試算表。")
